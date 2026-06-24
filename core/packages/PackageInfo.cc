@@ -178,7 +178,7 @@ int PackageInfo::orderByAlphabetical(const core::GlobalState &gs, const PackageI
 
 optional<core::AutocorrectSuggestion> PackageInfo::addImport(const core::GlobalState &gs, const PackageInfo &info,
                                                              ImportType importType) const {
-    if (gs.packageDB().testPackages()) {
+    if (this->usesTestPackages) {
         if (importType != ImportType::Normal) {
             ENFORCE(false, "addImport called to add test_import when --test-packages is enabled");
             return nullopt;
@@ -556,7 +556,7 @@ bool PackageInfo::isVisibleTo(const core::GlobalState &gs, const PackageInfo &im
         return true;
     }
 
-    if (gs.packageDB().testPackages()) {
+    if (importingPkgInfo.usesTestPackages) {
         ENFORCE(importType == ImportType::Normal);
         if (visibleToTests() && importingPkgInfo.testPackage()) {
             return true;
@@ -593,8 +593,8 @@ void PackageInfo::trackPackageReferences(FileRef file, vector<pair<MangledName, 
     packagesReferencedByFile[file].swap(references);
 }
 
-core::packages::ImportType PackageInfo::fileToImportType(const core::GlobalState &gs, core::FileRef file) {
-    if (gs.packageDB().testPackages()) {
+core::packages::ImportType PackageInfo::fileToImportType(const core::GlobalState &gs, core::FileRef file) const {
+    if (this->usesTestPackages) {
         return core::packages::ImportType::Normal;
     }
 
@@ -804,12 +804,12 @@ std::string PackageInfo::renderPackageRbContents(const core::GlobalState &gs, ve
                        strictDependenciesLevelToString(strictDependenciesLevel));
     }
     if (locs.minTypedLevel.exists() && locs.testsMinTypedLevel.exists()) {
-        ENFORCE(!gs.packageDB().testPackages());
+        ENFORCE(!this->usesTestPackages);
         fmt::format_to(std::back_inserter(result), "  sorbet min_typed_level: '{}', tests_min_typed_level: '{}'\n",
                        core::SigilTraits<core::StrictLevel>::toString(minTypedLevel),
                        core::SigilTraits<core::StrictLevel>::toString(testsMinTypedLevel));
     } else if (locs.minTypedLevel.exists() && !locs.testsMinTypedLevel.exists()) {
-        ENFORCE(gs.packageDB().testPackages());
+        ENFORCE(this->usesTestPackages);
         fmt::format_to(std::back_inserter(result), "  sorbet min_typed_level: '{}'\n",
                        core::SigilTraits<core::StrictLevel>::toString(minTypedLevel));
     }
@@ -901,7 +901,7 @@ std::string PackageInfo::renderPackageRbContents(const core::GlobalState &gs, ve
             case ImportType::Normal: {
                 auto *existingImport = importsPackage(import.mangledName);
                 if (existingImport != nullptr && existingImport->usesInternals) {
-                    ENFORCE(gs.packageDB().testPackages());
+                    ENFORCE(this->usesTestPackages);
                     fmt::format_to(std::back_inserter(result), "  import {}, uses_internals: true\n", impPackageName);
                 } else {
                     fmt::format_to(std::back_inserter(result), "  import {}\n", impPackageName);
@@ -909,11 +909,11 @@ std::string PackageInfo::renderPackageRbContents(const core::GlobalState &gs, ve
                 break;
             }
             case ImportType::TestHelper:
-                ENFORCE(!gs.packageDB().testPackages());
+                ENFORCE(!this->usesTestPackages);
                 fmt::format_to(std::back_inserter(result), "  test_import {}\n", impPackageName);
                 break;
             case ImportType::TestUnit:
-                ENFORCE(!gs.packageDB().testPackages());
+                ENFORCE(!this->usesTestPackages);
                 fmt::format_to(std::back_inserter(result), "  test_import {}, only: \"test_rb\"\n", impPackageName);
                 break;
         }
